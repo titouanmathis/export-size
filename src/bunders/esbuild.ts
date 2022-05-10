@@ -9,7 +9,9 @@ export class ESBuildBundler extends Bundler {
   async bundle(exportName: string, exportPath: string) {
     const entry = exportName === 'default'
       ? `export { default as _ } from '${exportPath}'`
-      : `export { ${exportName} as _ } from '${exportPath}'`
+      : exportName === '*'
+        ? `export * as _ from '${exportPath}'`
+        : `export { ${exportName} as _ } from '${exportPath}'`
     try {
       const bundledResult = await build({
         bundle: true,

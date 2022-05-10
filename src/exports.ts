@@ -124,5 +124,6 @@ export async function getAllExports(context: string, lookupPath: string, isLocal
   }
 
   const allExports = await getAllExportsRecursive(context, lookupPath, isLocal)
+  allExports['*'] = isLocal ? resolveLocal(context) : resolver(context, lookupPath);
   return allExports
 }
