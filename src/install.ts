@@ -15,11 +15,30 @@ export async function loadPackageJSON(packageDir: string) {
     ]),
   )
 
+  let packageExports = Object.entries(packageJSON.exports ?? {}).filter(
+    ([packageExport, packageExportValue]) => {
+      if (packageExport.includes('*')) {
+        return false
+      }
+
+      if (typeof packageExportValue === 'string' && !packageExportValue.endsWith('.js')) {
+        return false
+      }
+
+      return true
+    }
+  ).map(([packageExport]) => packageExport)
+
+  if (packageExports.length === 0) {
+    packageExports = ['.']
+  }
+
   return {
     name: packageJSON.name,
     packageDir,
     packageJSON,
     dependencies,
+    packageExports,
   }
 }
 

@@ -25,6 +25,7 @@ export interface ExportsSizeOptions {
   reporter?: (name: string, progress: number, total: number) => void
   clean?: boolean
   bundler?: SupportBundler
+  pkgExports?: string[]
 }
 
 export interface MetaInfo {
@@ -49,6 +50,7 @@ export async function getExportsSize({
   reporter,
   output = true,
   clean = true,
+  pkgExports = ['.'],
   bundler: bunderName,
 }: ExportsSizeOptions) {
   const dist = path.resolve('export-size-output')
@@ -69,7 +71,11 @@ export async function getExportsSize({
     packageJSON,
   } = await loadPackageJSON(packageDir)
 
-  const exportsPaths = await getAllExports(dir, name, isLocal)
+  const exportsPaths = {}
+
+  for (const pkgExport of pkgExports) {
+    exportsPaths[pkgExport] = await getAllExports(dir, path.join(name, pkgExport), isLocal)
+  }
 
   if (output) {
     await fs.ensureDir(path.join(dist, 'bundled'))
@@ -93,7 +99,7 @@ export async function getExportsSize({
   }
   meta.versions['brotli-size'] = getPackageVersion('brotli-size')
 
-  const total = Object.keys(exportsPaths).length
+  const total = Object.values(exportsPaths).reduce((acc, exportPath) => acc.concat(Object.keys(exportPath)), []).length
   let count = 0
 
   const exports: ExportsInfo[] = []
@@ -103,30 +109,32 @@ export async function getExportsSize({
 
   await bundler.start()
 
-  for (const [name, modulePath] of Object.entries(exportsPaths)) {
-    const { bundled, minified } = await bundler.bundle(name, path.resolve(dir, modulePath).replace(/\\/g, '/'))
+  for (const [packageExportPath, exportsPath] of Object.entries(exportsPaths)) {
+    for (const [name, modulePath] of Object.entries(exportsPath)) {
+      const { bundled, minified } = await bundler.bundle(name, path.resolve(dir, modulePath).replace(/\\/g, '/'))
 
-    if (output) {
-      await fs.writeFile(path.join(dist, 'bundled', `${name}.js`), bundled, 'utf-8')
-      await fs.writeFile(path.join(dist, 'minified', `${name}.min.js`), minified, 'utf-8')
+      if (output) {
+        await fs.writeFile(path.join(dist, 'bundled', `${name}.js`), bundled, 'utf-8')
+        await fs.writeFile(path.join(dist, 'minified', `${name}.min.js`), minified, 'utf-8')
+      }
+
+      const bundledSize = bundled.length
+      const minifiedSize = minified.length
+      const minzippedSize = await brotliSize(minified)
+
+      count += 1
+
+      if (reporter)
+        reporter(name, count, total)
+
+      exports.push({
+        name: packageExportPath !== '.' ? packageExportPath.replace('./', '') + '/' + name : name,
+        path: modulePath,
+        minified: minifiedSize,
+        minzipped: minzippedSize,
+        bundled: bundledSize,
+      })
     }
-
-    const bundledSize = bundled.length
-    const minifiedSize = minified.length
-    const minzippedSize = await brotliSize(minified)
-
-    count += 1
-
-    if (reporter)
-      reporter(name, count, total)
-
-    exports.push({
-      name,
-      path: modulePath,
-      minified: minifiedSize,
-      minzipped: minzippedSize,
-      bundled: bundledSize,
-    })
   }
 
   bundler.stop()

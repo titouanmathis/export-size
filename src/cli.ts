@@ -50,6 +50,12 @@ yargs
           choices: ['esbuild', 'rollup'],
           describe: 'bundler, can be esbuild or rollup',
         })
+        .option('paths', {
+          default: ['.'],
+          type: 'array',
+          alias: 'p',
+          describe: 'export paths to test'
+        })
     },
     async(args) => {
       if (!args.package) {
@@ -69,6 +75,7 @@ yargs
 
       const { exports, packageJSON, meta } = await getExportsSize({
         pkg: args.package,
+        pkgExports: args.paths,
         external: args.external,
         extraDependencies: args.install,
         output: args.output,
